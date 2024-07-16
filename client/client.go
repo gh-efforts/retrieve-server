@@ -13,16 +13,6 @@ var log = logging.Logger("client")
 
 var ErrNotFound = errors.New("block not found")
 
-type RootBlock struct {
-	Root  string `json:"root"`
-	Block []byte `json:"block"`
-}
-
-type RootSize struct {
-	Root string `json:"root"`
-	Size int    `json:"size"`
-}
-
 type Client struct {
 	addr string
 }

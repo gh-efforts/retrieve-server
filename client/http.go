@@ -8,6 +8,16 @@ import (
 	"net/http"
 )
 
+type RootBlock struct {
+	Root  string `json:"root"`
+	Block []byte `json:"block"`
+}
+
+type RootSize struct {
+	Root string `json:"root"`
+	Size int    `json:"size"`
+}
+
 func GetBlock(addr string, root string) (*RootBlock, error) {
 	url := fmt.Sprintf("http://%s/block/%s", addr, root)
 	resp, err := http.Get(url)
@@ -30,6 +40,7 @@ func GetBlock(addr string, root string) (*RootBlock, error) {
 		return nil, err
 	}
 
+	log.Debugw("GetBlock", "root", root, "size", len(rb.Block))
 	return &rb, nil
 }
 
@@ -55,6 +66,7 @@ func GetSize(addr string, root string) (*RootSize, error) {
 		return nil, err
 	}
 
+	log.Debugw("GetSize", "root", root, "size", rz.Size)
 	return &rz, nil
 }
 
@@ -66,9 +78,11 @@ func GetHas(addr string, root string) bool {
 	}
 
 	if root == rz.Root {
+		log.Debugw("GetHas", "root", root, "has", true)
 		return true
 	}
 
+	log.Debugw("GetHas", "root", root, "has", false)
 	return false
 }
 
@@ -98,5 +112,6 @@ func PostRootBlock(addr string, root string, block []byte) error {
 		return fmt.Errorf("status: %s msg: %s", resp.Status, string(r))
 	}
 
+	log.Debugw("PostRootBlock", "root", root, "size", len(block))
 	return nil
 }
