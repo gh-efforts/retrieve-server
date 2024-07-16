@@ -22,3 +22,4 @@ go.work
 go.work.sum
 /retrieve-server
 /rserver.db
+/retrieve-http

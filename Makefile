@@ -12,7 +12,7 @@ endif
 
 GOFLAGS+=-ldflags="$(ldflags)"
 
-build: retrieve-server
+build: retrieve-server retrieve-http
 .PHONY: build
 
 retrieve-server:
@@ -20,7 +20,13 @@ retrieve-server:
 	go build $(GOFLAGS) -o retrieve-server ./cmd/retrieve-server
 .PHONY: retrieve-server
 
+retrieve-http:
+	rm -f retrieve-http
+	go build $(GOFLAGS) -o retrieve-http ./cmd/retrieve-http
+.PHONY: retrieve-http
+
 clean:
 	rm -f retrieve-server
+	rm -f retrieve-http
 	go clean
 .PHONY: clean
