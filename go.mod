@@ -133,7 +133,7 @@ require (
 	github.com/ipfs/go-metrics-interface v0.0.1 // indirect
 	github.com/ipfs/go-unixfsnode v1.9.0 // indirect
 	github.com/ipld/frisbii v0.5.1
-	github.com/ipld/go-car/v2 v2.13.1 // indirect
+	github.com/ipld/go-car/v2 v2.13.1
 	github.com/ipld/go-codec-dagpb v1.6.0 // indirect
 	github.com/ipld/go-ipld-adl-hamt v0.0.0-20240322071803-376decb85801 // indirect
 	github.com/ipld/go-ipld-prime v0.21.0 // indirect

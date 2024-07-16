@@ -27,6 +27,7 @@ var log = logging.Logger("main")
 func main() {
 	local := []*cli.Command{
 		runCmd,
+		postCmd,
 		pprofCmd,
 	}
 
