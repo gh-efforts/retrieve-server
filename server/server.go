@@ -19,7 +19,7 @@ func New(db *sql.DB) *Server {
 }
 
 func (s *Server) upsert(rb *RootBlock) error {
-	_, err := s.db.Exec(`INSERT OR REPLACE INTO RootBlocks(root, size, block) VALUES ($1, $2, $3)`, rb.Root, len(rb.Block), rb.Block)
+	_, err := s.db.Exec(`INSERT OR IGNORE INTO RootBlocks(root, size, block) VALUES ($1, $2, $3)`, rb.Root, len(rb.Block), rb.Block)
 	if err != nil {
 		return err
 	}

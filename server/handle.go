@@ -2,9 +2,11 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/gh-efforts/retrieve-server/middleware"
+	"github.com/ipfs/go-cid"
 )
 
 type RootBlock struct {
@@ -27,6 +29,12 @@ func (s *Server) Handle() {
 func (s *Server) upsertHandle(w http.ResponseWriter, r *http.Request) {
 	var rb RootBlock
 	err := json.NewDecoder(r.Body).Decode(&rb)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err = verify(&rb)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -86,4 +94,22 @@ func (s *Server) deleteHandle(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func verify(rb *RootBlock) error {
+	root, err := cid.Parse(rb.Root)
+	if err != nil {
+		return err
+	}
+
+	new, err := root.Prefix().Sum(rb.Block)
+	if err != nil {
+		return err
+	}
+
+	if !new.Equals(root) {
+		return fmt.Errorf("cid not match, %s!=%s", root, new)
+	}
+
+	return nil
 }
