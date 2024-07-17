@@ -1,14 +1,10 @@
 package client
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
-	"net/http"
 
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 )
@@ -16,16 +12,6 @@ import (
 var log = logging.Logger("client")
 
 var ErrNotFound = errors.New("block not found")
-
-type RootBlock struct {
-	Root  string `json:"root"`
-	Block []byte `json:"block"`
-}
-
-type RootSize struct {
-	Root string `json:"root"`
-	Size int    `json:"size"`
-}
 
 type Client struct {
 	addr string
@@ -61,95 +47,34 @@ func (c *Client) BlockstoreHas(ctx context.Context, cid cid.Cid) (bool, error) {
 	return GetHas(c.addr, cid.String()), nil
 }
 
-func GetBlock(addr string, root string) (*RootBlock, error) {
-	url := fmt.Sprintf("http://%s/block/%s", addr, root)
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		r, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf("status: %s msg: %s", resp.Status, string(r))
-	}
-
-	var rb RootBlock
-	err = json.NewDecoder(resp.Body).Decode(&rb)
+func (c *Client) Get(ctx context.Context, cid cid.Cid) (b blocks.Block, err error) {
+	data, err := c.BlockstoreGet(ctx, cid)
 	if err != nil {
 		return nil, err
 	}
 
-	return &rb, nil
+	return blocks.NewBlockWithCid(data, cid)
 }
 
-func GetSize(addr string, root string) (*RootSize, error) {
-	url := fmt.Sprintf("http://%s/size/%s", addr, root)
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		r, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf("status: %s msg: %s", resp.Status, string(r))
-	}
-
-	var rz RootSize
-	err = json.NewDecoder(resp.Body).Decode(&rz)
-	if err != nil {
-		return nil, err
-	}
-
-	return &rz, nil
+func (c *Client) Has(ctx context.Context, cid cid.Cid) (bool, error) {
+	return c.BlockstoreHas(ctx, cid)
 }
 
-func GetHas(addr string, root string) bool {
-	rz, err := GetSize(addr, root)
-	if err != nil {
-		log.Error(err)
-		return false
-	}
-
-	if root == rz.Root {
-		return true
-	}
-
-	return false
+func (c *Client) GetSize(ctx context.Context, cid cid.Cid) (int, error) {
+	return c.BlockstoreGetSize(ctx, cid)
 }
 
-func PostRootBlock(addr string, root string, block []byte) error {
-	rb := RootBlock{
-		Root:  root,
-		Block: block,
-	}
-
-	body, err := json.Marshal(&rb)
-	if err != nil {
-		return err
-	}
-
-	url := fmt.Sprintf("http://%s/block", addr)
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(body))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		r, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("status: %s msg: %s", resp.Status, string(r))
-	}
-
-	return nil
+// --- UNSUPPORTED BLOCKSTORE METHODS -------
+func (c *Client) DeleteBlock(context.Context, cid.Cid) error {
+	return errors.New("unsupported operation DeleteBlock")
+}
+func (c *Client) HashOnRead(_ bool) {}
+func (c *Client) Put(context.Context, blocks.Block) error {
+	return errors.New("unsupported operation Put")
+}
+func (c *Client) PutMany(context.Context, []blocks.Block) error {
+	return errors.New("unsupported operation PutMany")
+}
+func (c *Client) AllKeysChan(ctx context.Context) (<-chan cid.Cid, error) {
+	return nil, errors.New("unsupported operation AllKeysChan")
 }
