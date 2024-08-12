@@ -99,6 +99,8 @@ var runCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
+		defer db.Close()
+
 		server.New(db).Handle()
 
 		server := &http.Server{
