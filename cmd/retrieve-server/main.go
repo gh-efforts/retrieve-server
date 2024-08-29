@@ -28,6 +28,7 @@ func main() {
 	local := []*cli.Command{
 		runCmd,
 		postCmd,
+		migrateCmd,
 		pprofCmd,
 	}
 
@@ -95,13 +96,13 @@ var runCmd = &cli.Command{
 		}
 		log.Infof("db path: %s", path)
 
-		db, err := db.OpenDB(path)
+		d, err := db.OpenDB(path)
 		if err != nil {
 			return err
 		}
-		defer db.Close()
+		defer d.DB.Close()
 
-		server.New(db).Handle()
+		server.New(d).Handle()
 
 		server := &http.Server{
 			Addr: listen,
