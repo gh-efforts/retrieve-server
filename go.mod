@@ -11,6 +11,7 @@ require (
 	github.com/ipfs/go-log/v2 v2.5.1
 	github.com/ipld/frisbii v0.4.1
 	github.com/ipld/go-car/v2 v2.13.1
+	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/urfave/cli/v2 v2.25.7

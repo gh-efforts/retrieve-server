@@ -1,35 +1,46 @@
 package server
 
 import (
-	"database/sql"
+	"fmt"
 
+	"github.com/gh-efforts/retrieve-server/db"
 	logging "github.com/ipfs/go-log/v2"
 )
 
 var log = logging.Logger("server")
 
 type Server struct {
-	db *sql.DB
+	d *db.DB
 }
 
-func New(db *sql.DB) *Server {
+func New(d *db.DB) *Server {
 	return &Server{
-		db: db,
+		d: d,
 	}
 }
 
 func (s *Server) upsert(rb *RootBlock) error {
-	_, err := s.db.Exec(`INSERT OR IGNORE INTO RootBlocks(root, size, block) VALUES ($1, $2, $3)`, rb.Root, len(rb.Block), rb.Block)
+	var query string
+	switch s.d.DBType {
+	case "sqlite":
+		query = `INSERT OR IGNORE INTO RootBlocks(root, size, block) VALUES (?, ?, ?)`
+	case "postgres", "yugabyte":
+		query = `INSERT INTO RootBlocks(root, size, block) VALUES ($1, $2, $3) ON CONFLICT (root) DO UPDATE SET size = $2, block = $3`
+	default:
+		return fmt.Errorf("unknown db type: %s", s.d.DBType)
+	}
+
+	_, err := s.d.DB.Exec(query, rb.Root, len(rb.Block), rb.Block)
 	if err != nil {
 		return err
 	}
 
-	log.Debugw("upsertr", "root", rb.Root, "size", len(rb.Block))
+	log.Debugw("upsert", "root", rb.Root, "size", len(rb.Block))
 	return nil
 }
 
 func (s *Server) delete(root string) error {
-	_, err := s.db.Exec(`DELETE FROM RootBlocks WHERE root=$1`, root)
+	_, err := s.d.DB.Exec(`DELETE FROM RootBlocks WHERE root=$1`, root)
 	if err != nil {
 		return err
 	}
@@ -40,7 +51,7 @@ func (s *Server) delete(root string) error {
 
 func (s *Server) block(root string) ([]byte, error) {
 	var block []byte
-	err := s.db.QueryRow(`SELECT block FROM RootBlocks WHERE root=$1`, root).Scan(&block)
+	err := s.d.DB.QueryRow(`SELECT block FROM RootBlocks WHERE root=$1`, root).Scan(&block)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +62,7 @@ func (s *Server) block(root string) ([]byte, error) {
 
 func (s *Server) size(root string) (int, error) {
 	var size int
-	err := s.db.QueryRow(`SELECT size FROM RootBlocks WHERE root=$1`, root).Scan(&size)
+	err := s.d.DB.QueryRow(`SELECT size FROM RootBlocks WHERE root=$1`, root).Scan(&size)
 	if err != nil {
 		return 0, err
 	}
