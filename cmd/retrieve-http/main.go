@@ -89,7 +89,9 @@ var runCmd = &cli.Command{
 		lsys := storeutil.LinkSystemForBlockstore(client.New(cctx.String("server-addr")))
 		http.Handle(
 			"/ipfs/",
-			frisbii.NewHttpIpfs(ctx, lsys, frisbii.WithCompressionLevel(gzip.NoCompression)),
+			logHandler(
+				frisbii.NewHttpIpfs(ctx, lsys, frisbii.WithCompressionLevel(gzip.NoCompression)),
+			),
 		)
 
 		server := &http.Server{
@@ -115,4 +117,25 @@ func setLog(debug bool) {
 
 	logging.SetLogLevel("main", level)
 	logging.SetLogLevel("client", level)
+}
+
+func logHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 获取真实IP，考虑X-Forwarded-For和X-Real-IP头
+		ip := r.Header.Get("X-Real-IP")
+		if ip == "" {
+			ip = r.Header.Get("X-Forwarded-For")
+			if ip == "" {
+				ip = r.RemoteAddr
+			}
+		}
+
+		log.Debugw("incoming request",
+			"path", r.URL.Path,
+			"method", r.Method,
+			"source_ip", ip,
+		)
+
+		next.ServeHTTP(w, r)
+	})
 }
