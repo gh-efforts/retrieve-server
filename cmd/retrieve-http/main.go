@@ -2,6 +2,8 @@ package main
 
 import (
 	"compress/gzip"
+	"fmt"
+	"math/rand"
 	"net/http"
 	"os"
 	"time"
@@ -55,6 +57,11 @@ var runCmd = &cli.Command{
 			Name:  "server-addr",
 			Value: "127.0.0.1:9876",
 		},
+		&cli.Float64Flag{
+			Name:  "reject-rate",
+			Value: 0.0,
+			Usage: "Random rejection rate (0.0-1.0)",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		setLog(cctx.Bool("debug"))
@@ -86,11 +93,19 @@ var runCmd = &cli.Command{
 
 		http.Handle("/metrics", exporter)
 
+		rejectRate := cctx.Float64("reject-rate")
+		if rejectRate < 0 || rejectRate > 1 {
+			return fmt.Errorf("reject-rate must be between 0.0 and 1.0")
+		}
+
 		lsys := storeutil.LinkSystemForBlockstore(client.New(cctx.String("server-addr")))
 		http.Handle(
 			"/ipfs/",
-			logHandler(
-				frisbii.NewHttpIpfs(ctx, lsys, frisbii.WithCompressionLevel(gzip.NoCompression)),
+			randomRejectHandler(
+				logHandler(
+					frisbii.NewHttpIpfs(ctx, lsys, frisbii.WithCompressionLevel(gzip.NoCompression)),
+				),
+				rejectRate,
 			),
 		)
 
@@ -121,7 +136,6 @@ func setLog(debug bool) {
 
 func logHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// 获取真实IP，考虑X-Forwarded-For和X-Real-IP头
 		ip := r.Header.Get("X-Real-IP")
 		if ip == "" {
 			ip = r.Header.Get("X-Forwarded-For")
@@ -136,6 +150,21 @@ func logHandler(next http.Handler) http.Handler {
 			"source_ip", ip,
 		)
 
+		next.ServeHTTP(w, r)
+	})
+}
+
+func randomRejectHandler(next http.Handler, rejectRate float64) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if rand.Float64() < rejectRate {
+			log.Debugw("request rejected by random handler",
+				"path", r.URL.Path,
+				"method", r.Method,
+				"reject_rate", rejectRate,
+			)
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
 }
