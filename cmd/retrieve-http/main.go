@@ -3,7 +3,7 @@ package main
 import (
 	"compress/gzip"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 	"os"
 	"time"
@@ -62,6 +62,12 @@ var runCmd = &cli.Command{
 			Value: 0.0,
 			Usage: "Random rejection rate (0.0-1.0)",
 		},
+		&cli.StringFlag{
+			Name:     "car-info",
+			Required: true,
+			Value:    "./car-info",
+			Usage:    "car info file path",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		setLog(cctx.Bool("debug"))
@@ -91,7 +97,23 @@ var runCmd = &cli.Command{
 		listen := cctx.String("listen")
 		log.Infow("retrieve http", "listen", listen)
 
+		if err := loadCarInfo(cctx.String("car-info")); err != nil {
+			return fmt.Errorf("load car info failed: %w", err)
+		}
+
 		http.Handle("/metrics", exporter)
+
+		http.HandleFunc("/reload", func(w http.ResponseWriter, r *http.Request) {
+			if err := loadCarInfo(cctx.String("car-info")); err != nil {
+				log.Errorw("reload car info failed", "error", err)
+				http.Error(w, fmt.Sprintf("reload failed: %s", err), http.StatusInternalServerError)
+				return
+			}
+
+			log.Info("reload car info success")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("reload success"))
+		})
 
 		rejectRate := cctx.Float64("reject-rate")
 		if rejectRate < 0 || rejectRate > 1 {
@@ -101,11 +123,13 @@ var runCmd = &cli.Command{
 		lsys := storeutil.LinkSystemForBlockstore(client.New(cctx.String("server-addr")))
 		http.Handle(
 			"/ipfs/",
-			randomRejectHandler(
-				logHandler(
-					frisbii.NewHttpIpfs(ctx, lsys, frisbii.WithCompressionLevel(gzip.NoCompression)),
+			logHandler(
+				carHandler(
+					randomRejectHandler(
+						frisbii.NewHttpIpfs(ctx, lsys, frisbii.WithCompressionLevel(gzip.NoCompression)),
+						rejectRate,
+					),
 				),
-				rejectRate,
 			),
 		)
 
@@ -136,18 +160,12 @@ func setLog(debug bool) {
 
 func logHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip := r.Header.Get("X-Real-IP")
-		if ip == "" {
-			ip = r.Header.Get("X-Forwarded-For")
-			if ip == "" {
-				ip = r.RemoteAddr
-			}
-		}
-
 		log.Debugw("incoming request",
-			"path", r.URL.Path,
+			"url", r.URL.String(),
 			"method", r.Method,
-			"source_ip", ip,
+			"remote_addr", r.RemoteAddr,
+			"X-Real-IP", r.Header.Get("X-Real-IP"),
+			"X-Forwarded-For", r.Header.Get("X-Forwarded-For"),
 		)
 
 		next.ServeHTTP(w, r)
@@ -157,12 +175,27 @@ func logHandler(next http.Handler) http.Handler {
 func randomRejectHandler(next http.Handler, rejectRate float64) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if rand.Float64() < rejectRate {
-			log.Debugw("request rejected by random handler",
+			log.Debugw("random reject",
 				"path", r.URL.Path,
 				"method", r.Method,
 				"reject_rate", rejectRate,
 			)
 			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func carHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		dagScope := r.URL.Query().Get("dag-scope")
+		if dagScope == "all" || dagScope == "" {
+			log.Debugw("random car",
+				"path", r.URL.Path,
+				"method", r.Method,
+			)
+			car(w, r)
 			return
 		}
 		next.ServeHTTP(w, r)
