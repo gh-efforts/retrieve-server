@@ -42,6 +42,7 @@ func loadCarInfo(dirPath string) error {
 	for _, file := range files {
 		if !file.IsDir() {
 			filePath := filepath.Join(dirPath, file.Name())
+			log.Infof("load car info from %s", filePath)
 
 			f, err := os.Open(filePath)
 			if err != nil {
@@ -63,6 +64,12 @@ func loadCarInfo(dirPath string) error {
 			}
 		}
 	}
+	count := 0
+	carInfoMap.Range(func(key, value interface{}) bool {
+		count++
+		return true
+	})
+	log.Infof("load car info from %s, total %d", dirPath, count)
 	return nil
 }
 
@@ -115,6 +122,7 @@ func car(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
+	log.Debugw("car handler", "dataCid", dataCid, "carInfo.DataCid", carInfo.DataCid, "fileName", carInfo.FileName)
 
 	downloader := operation.NewDownloaderV2()
 	resp, err := downloader.DownloadRaw(carInfo.FileName, nil)

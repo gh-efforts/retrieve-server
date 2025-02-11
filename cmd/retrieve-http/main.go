@@ -183,6 +183,10 @@ func randomRejectHandler(next http.Handler, rejectRate float64) http.Handler {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
+		log.Debugw("retrieve server",
+			"path", r.URL.Path,
+			"method", r.Method,
+		)
 		next.ServeHTTP(w, r)
 	})
 }
@@ -191,7 +195,7 @@ func carHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dagScope := r.URL.Query().Get("dag-scope")
 		if dagScope == "all" || dagScope == "" {
-			log.Debugw("random car",
+			log.Debugw("car handler",
 				"path", r.URL.Path,
 				"method", r.Method,
 			)
