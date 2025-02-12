@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,7 +14,11 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/filecoin-project/boost-graphsync/storeutil"
 	"github.com/ipfs/go-cid"
+	"github.com/ipld/frisbii"
+	carv2 "github.com/ipld/go-car/v2"
+	"github.com/ipld/go-car/v2/blockstore"
 	"github.com/service-sdk/go-sdk-qn/v2/operation"
 )
 
@@ -91,21 +97,21 @@ func getRandomDataCid() (string, error) {
 	return keys[randomIndex], nil
 }
 
-func getCarInfo(dataCid string) (CarInfo, error) {
+func getCarInfo(dataCid string) (CarInfo, bool, error) {
 	if value, ok := carInfoMap.Load(dataCid); ok {
-		return value.(CarInfo), nil
+		return value.(CarInfo), true, nil
 	}
 
 	randomCid, err := getRandomDataCid()
 	if err != nil {
-		return CarInfo{}, err
+		return CarInfo{}, false, err
 	}
 
 	if value, ok := carInfoMap.Load(randomCid); ok {
-		return value.(CarInfo), nil
+		return value.(CarInfo), false, nil
 	}
 
-	return CarInfo{}, fmt.Errorf("cannot get car info")
+	return CarInfo{}, false, fmt.Errorf("cannot get car info")
 }
 
 func car(w http.ResponseWriter, r *http.Request) {
@@ -116,13 +122,31 @@ func car(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	carInfo, err := getCarInfo(dataCid)
+	carInfo, ok, err := getCarInfo(dataCid)
 	if err != nil {
 		log.Errorw("cannot get car info", "cid", dataCid, "error", err)
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
-	log.Debugw("car handler", "dataCid", dataCid, "carInfo.DataCid", carInfo.DataCid, "fileName", carInfo.FileName)
+	log.Debugw("car handler", "dataCid", dataCid, "carInfo.DataCid", carInfo.DataCid, "fileName", carInfo.FileName, "ok", ok)
+	if ok {
+		downloader := operation.NewDownloaderV2()
+		data, err := downloader.DownloadBytes(carInfo.FileName)
+		if err != nil {
+			log.Errorw("cannot download car", "cid", carInfo.DataCid, "fileName", carInfo.FileName, "error", err)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		bs, err := blockstore.NewReadOnly(bytes.NewReader(data), nil, carv2.ZeroLengthSectionAsEOF(true))
+		if err != nil {
+			log.Errorw("cannot create blockstore", "cid", carInfo.DataCid, "fileName", carInfo.FileName, "error", err)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		lsys := storeutil.LinkSystemForBlockstore(bs)
+		frisbii.NewHttpIpfs(r.Context(), lsys, frisbii.WithCompressionLevel(gzip.NoCompression)).ServeHTTP(w, r)
+		return
+	}
 
 	downloader := operation.NewDownloaderV2()
 	resp, err := downloader.DownloadRaw(carInfo.FileName, nil)
