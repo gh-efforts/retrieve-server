@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
@@ -130,14 +129,7 @@ func car(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Debugw("car handler", "dataCid", dataCid, "carInfo.DataCid", carInfo.DataCid, "fileName", carInfo.FileName, "ok", ok)
 	if ok {
-		downloader := operation.NewDownloaderV2()
-		data, err := downloader.DownloadBytes(carInfo.FileName)
-		if err != nil {
-			log.Errorw("cannot download car", "cid", carInfo.DataCid, "fileName", carInfo.FileName, "error", err)
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-		bs, err := blockstore.NewReadOnly(bytes.NewReader(data), nil, carv2.ZeroLengthSectionAsEOF(true))
+		bs, err := blockstore.NewReadOnly(NewDownloadReaderAt(carInfo.FileName), nil, carv2.ZeroLengthSectionAsEOF(true))
 		if err != nil {
 			log.Errorw("cannot create blockstore", "cid", carInfo.DataCid, "fileName", carInfo.FileName, "error", err)
 			w.WriteHeader(http.StatusNotFound)
