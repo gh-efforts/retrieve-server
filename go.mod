@@ -5,6 +5,7 @@ go 1.22
 require (
 	contrib.go.opencensus.io/exporter/prometheus v0.4.2
 	github.com/filecoin-project/boost-graphsync v0.13.12
+	github.com/filecoin-project/boost/extern/boostd-data v0.0.0-20250210111000-3a9ae3218f98
 	github.com/filecoin-project/lotus v1.28.1
 	github.com/ipfs/go-block-format v0.2.0
 	github.com/ipfs/go-cid v0.4.1
@@ -151,10 +152,12 @@ require (
 	github.com/prometheus/statsd_exporter v0.22.7 // indirect
 	github.com/raulk/clock v1.1.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/shirou/gopsutil v2.18.12+incompatible // indirect
+	github.com/shirou/gopsutil v3.21.4-0.20210419000835-c7a38de76ee5+incompatible // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/stretchr/testify v1.9.0 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7 // indirect
+	github.com/tklauser/go-sysconf v0.3.5 // indirect
+	github.com/tklauser/numcpus v0.2.2 // indirect
 	github.com/twmb/murmur3 v1.1.6 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.0.1 // indirect

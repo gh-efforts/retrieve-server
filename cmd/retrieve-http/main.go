@@ -15,6 +15,7 @@ import (
 	"github.com/ipld/frisbii"
 
 	"github.com/filecoin-project/boost-graphsync/storeutil"
+	bdclient "github.com/filecoin-project/boost/extern/boostd-data/client"
 	cliutil "github.com/filecoin-project/lotus/cli/util"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/urfave/cli/v2"
@@ -68,6 +69,11 @@ var runCmd = &cli.Command{
 			Value:    "./car-info",
 			Usage:    "car info file path",
 		},
+		&cli.StringFlag{
+			Name:     "api-lid",
+			Usage:    "the endpoint for the local index directory API, eg 'http://localhost:8042'",
+			Required: true,
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		setLog(cctx.Bool("debug"))
@@ -120,6 +126,13 @@ var runCmd = &cli.Command{
 			return fmt.Errorf("reject-rate must be between 0.0 and 1.0")
 		}
 
+		cl := bdclient.NewStore()
+		defer cl.Close(ctx)
+		err = cl.Dial(ctx, cctx.String("api-lid"))
+		if err != nil {
+			return fmt.Errorf("connecting to local index directory service: %w", err)
+		}
+
 		lsys := storeutil.LinkSystemForBlockstore(client.New(cctx.String("server-addr")))
 		http.Handle(
 			"/ipfs/",
@@ -129,6 +142,7 @@ var runCmd = &cli.Command{
 						frisbii.NewHttpIpfs(ctx, lsys, frisbii.WithCompressionLevel(gzip.NoCompression)),
 						rejectRate,
 					),
+					cl,
 				),
 			),
 		)
@@ -191,7 +205,7 @@ func randomRejectHandler(next http.Handler, rejectRate float64) http.Handler {
 	})
 }
 
-func carHandler(next http.Handler) http.Handler {
+func carHandler(next http.Handler, store *bdclient.Store) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dagScope := r.URL.Query().Get("dag-scope")
 		if dagScope == "all" || dagScope == "" {
@@ -199,7 +213,7 @@ func carHandler(next http.Handler) http.Handler {
 				"path", r.URL.Path,
 				"method", r.Method,
 			)
-			car(w, r)
+			car(w, r, store)
 			return
 		}
 		next.ServeHTTP(w, r)

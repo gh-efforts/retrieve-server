@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	"github.com/filecoin-project/boost-graphsync/storeutil"
+	bdclient "github.com/filecoin-project/boost/extern/boostd-data/client"
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/frisbii"
 	carv2 "github.com/ipld/go-car/v2"
@@ -113,7 +114,7 @@ func getCarInfo(dataCid string) (CarInfo, bool, error) {
 	return CarInfo{}, false, fmt.Errorf("cannot get car info")
 }
 
-func car(w http.ResponseWriter, r *http.Request) {
+func car(w http.ResponseWriter, r *http.Request, store *bdclient.Store) {
 	dataCid := strings.TrimPrefix(r.URL.Path, "/ipfs/")
 	if _, err := cid.Parse(dataCid); err != nil {
 		log.Errorw("invalid cid", "cid", dataCid, "error", err)
@@ -129,7 +130,13 @@ func car(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Debugw("car handler", "dataCid", dataCid, "carInfo.DataCid", carInfo.DataCid, "fileName", carInfo.FileName, "ok", ok)
 	if ok {
-		bs, err := blockstore.NewReadOnly(NewDownloadReaderAt(carInfo.FileName), nil, carv2.ZeroLengthSectionAsEOF(true))
+		idx, err := store.GetIndex(r.Context(), cid.MustParse(carInfo.PieceCid))
+		if err != nil {
+			log.Errorw("cannot get index", "cid", carInfo.PieceCid, "error", err)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		bs, err := blockstore.NewReadOnly(NewDownloadReaderAt(carInfo.FileName), idx, carv2.ZeroLengthSectionAsEOF(true))
 		if err != nil {
 			log.Errorw("cannot create blockstore", "cid", carInfo.DataCid, "fileName", carInfo.FileName, "error", err)
 			w.WriteHeader(http.StatusNotFound)
