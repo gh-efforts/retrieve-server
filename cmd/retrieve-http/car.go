@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ import (
 	"github.com/ipld/frisbii"
 	carv2 "github.com/ipld/go-car/v2"
 	"github.com/ipld/go-car/v2/blockstore"
+	carindex "github.com/ipld/go-car/v2/index"
 	"github.com/service-sdk/go-sdk-qn/v2/operation"
 )
 
@@ -130,7 +132,7 @@ func car(w http.ResponseWriter, r *http.Request, store *bdclient.Store) {
 	}
 	log.Debugw("car handler", "dataCid", dataCid, "carInfo.DataCid", carInfo.DataCid, "fileName", carInfo.FileName, "ok", ok)
 	if ok {
-		idx, err := store.GetIndex(r.Context(), cid.MustParse(carInfo.PieceCid))
+		idx, err := getIterableIndex(r.Context(), store, cid.MustParse(carInfo.PieceCid))
 		if err != nil {
 			log.Errorw("cannot get index", "cid", carInfo.PieceCid, "error", err)
 			w.WriteHeader(http.StatusNotFound)
@@ -159,4 +161,18 @@ func car(w http.ResponseWriter, r *http.Request, store *bdclient.Store) {
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.WriteHeader(http.StatusOK)
 	io.Copy(w, resp.Body)
+}
+
+func getIterableIndex(ctx context.Context, store *bdclient.Store, pieceCid cid.Cid) (carindex.IterableIndex, error) {
+	idx, err := store.GetIndex(ctx, pieceCid)
+	if err != nil {
+		return nil, err
+	}
+
+	switch concrete := idx.(type) {
+	case carindex.IterableIndex:
+		return concrete, nil
+	default:
+		return nil, fmt.Errorf("expected index to be MultihashIndexSorted but got %T", idx)
+	}
 }
